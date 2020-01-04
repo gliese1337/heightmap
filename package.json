@@ -1,0 +1,16 @@
+{
+  "name": "heightmap",
+  "version": "1.0.0",
+  "description": "A demo of voxelspace heightmap rendering",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "repository": "https://github.com/gliese1337/heightmap/",
+  "keywords": [ ],
+  "author": "Logan Kearsley",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^1.4.1"
+  }
+}
