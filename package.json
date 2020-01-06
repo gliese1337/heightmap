@@ -7,10 +7,11 @@
     "start": "electron ."
   },
   "repository": "https://github.com/gliese1337/heightmap/",
-  "keywords": [ ],
+  "keywords": [],
   "author": "Logan Kearsley",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^1.4.1"
+    "electron": "^1.4.1",
+    "typescript": "^3.7.4"
   }
 }
