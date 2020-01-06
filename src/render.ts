@@ -1,4 +1,4 @@
-function blend(c1, c2, r) {
+function blend(c1: number, c2: number, r: number) {
   const s = 1 - r;
   return 0xff000000 | (
           (((((c1>>>16)&0xff)*s) << 16)|((((c1>>>8)&0xff)*s) << 8)|((c1&0xff)*s)) +
@@ -6,7 +6,7 @@ function blend(c1, c2, r) {
   );
 }
 
-function Render(screendata, camera, map) {
+export default function Render(screendata, camera, map) {
   const { color, shift } = map;
   const { sin, cos, distance, relief, height, horizon, x, y } = camera;
 
@@ -57,4 +57,3 @@ function Render(screendata, camera, map) {
     dy += d2y;
   }
 }
-  

@@ -76,5 +76,12 @@
 <script src="map.js"></script>
 <script src="input.js"></script>
 <script src="index.js"></script>
+<script>
+  const { default: main } = require("./bin/main.js");
+  main(
+    document.getElementById('fullscreenCanvas'),
+    document.getElementById('fps'),
+  );
+</script>
 </body>
 </html>
