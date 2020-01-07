@@ -1,4 +1,4 @@
-import { ControlStates } from './Controls';
+import { ControlStates } from './ConcreteControls';
 import { ScreenBuffer } from './ScreenBuffer';
 import { GameMap } from './GameMap';
 
@@ -59,7 +59,6 @@ export class Camera {
 
       this.height += input.updown * time * 10;
     }
-
 
     if (input.forwardbackward !== 0) {
       this.x -= input.forwardbackward * this.sin * time * 10;

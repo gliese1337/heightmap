@@ -1,130 +1,176 @@
-interface KeyValues {
-  spc: boolean;
-  sft: boolean;
-  lft: boolean;
-  rgt: boolean;
-  up:  boolean;
-  dwn: boolean;
-  lup: boolean;
-  ldn: boolean;
-};
-
-export interface ControlStates {
-  forwardbackward: number,
-  leftright:       number,
-  updown:          number,
-  lookupdwn:       number,
-  mouseX:          number,
-  mouseY:          number,
-  mouse:           boolean,
-}
-
 function GetMousePosition(e: any) {
   return e.type.startsWith('touch') ?
     [e.targetTouches[0].pageX, e.targetTouches[0].pageY] :
     [e.pageX, e.pageY];
 }
 
-export class Controls {
-  private codes: { [key: number]: keyof KeyValues } = {
-    32: 'spc', 16: 'sft',
-    // left arrow, a 
-    37: 'lft', 65: 'lft',
-    // right arrow, d
-    39: 'rgt', 68: 'rgt',
-    // up arrow, w
-    38: 'up', 87: 'up',
-    // down arrow, s
-    40: 'dwn', 83: 'dwn',
-    82: 'lup', // r
-    70: 'ldn', // f
-  };
+interface InputCodes {
+  [key: number]: string;
+}
 
-  private keys: KeyValues = {
-    spc: false,
-    sft: false,
-    lft: false,
-    rgt: false,
-    up:  false,
-    dwn: false,
-    lup: false,
-    ldn: false,
-  };
+interface ReverseCodes {
+  [key: string]: number[];
+}
 
-  public states: ControlStates = {
-    forwardbackward: 0,
-    leftright:       0,
-    updown:          0,
-    lookupdwn:       0,
-    mouseX:          0,
-    mouseY:          0,
-    mouse:           false,
-  };
+interface InputStates {
+  [key: number]: boolean;
+}
 
-  constructor(private width: number, private height: number) {
+interface KeyValues {
+  [key: string]: boolean;
+}
+
+interface MousePos {
+  mouseX: number;
+  mouseY: number;
+};
+
+type ControlUpdater<S> = (states: S, keys: KeyValues, mouse: MousePos) => void;
+
+export class Controls<ControlStates extends {}> {
+  public mouse: MousePos = { mouseX: 0, mouseY: 0};
+  public keys: KeyValues = new Proxy({} as KeyValues, { get: (target, prop) => target[prop as string] || false });
+  private keyCodes: InputCodes = {};
+  private mouseCodes: InputCodes = {};
+  private keyStates: InputStates = {};
+  private mouseStates: InputStates = {};
+  private reverseKey: ReverseCodes;
+  private reverseMouse: ReverseCodes;
+  private width = 0;
+  private height = 0;
+  private update: ControlUpdater<ControlStates> = () => {};
+
+  constructor(public states: ControlStates) {
+
     document.addEventListener('keydown', this.onKey.bind(this, true), false);
     document.addEventListener('keyup', this.onKey.bind(this, false), false);
     
-    document.addEventListener('mousedown', this.onMouse.bind(this, 1), false);
-    document.addEventListener('mousemove', this.onMouse.bind(this, 0), false);
-    document.addEventListener('mouseup', this.onMouse.bind(this, -1), false);
+    document.addEventListener('mousedown', this.onMouse.bind(this, true), false);
+    document.addEventListener('mousemove', this.onMouseMove.bind(this), false);
+    document.addEventListener('mouseup', this.onMouse.bind(this, false), false);
     
-    document.addEventListener('touchstart', this.onMouse.bind(this, 1), false);
-    document.addEventListener('touchmove', this.onMouse.bind(this, 0), false);
-    document.addEventListener('touchend', this.onMouse.bind(this, -1), false);
+    document.addEventListener('touchstart', this.onMouse.bind(this, true), false);
+    document.addEventListener('touchmove', this.onMouseMove.bind(this), false);
+    document.addEventListener('touchend', this.onMouse.bind(this, false), false);
   }
 
   resize(w: number, h: number) {
-    this.states.mouseX + (this.width - w) / 2;
-    this.states.mouseY + (this.height - h) / 2;
+    this.mouse.mouseX + (this.width - w) / 2;
+    this.mouse.mouseY + (this.height - h) / 2;
     this.width = w;
     this.height = h;
   }
 
-  onMouse(val: -1|0|1, e: Event) {
-    const { button } = e as MouseEvent;
-    
-    const { width, height, states, keys } = this;
-    
-    const [pageX, pageY] = GetMousePosition(e);
-    states.mouseX = 1 - 2 * pageX / width;
-    states.mouseY = 1 - 2 * pageY / height;
+  setUpdate(update: ControlUpdater<ControlStates>) {
+    this.update = update;
+  }
 
-    if (button !== 0) {
-      return;
+  setInputMap(kc: InputCodes, mc: InputCodes) {
+    const { keys } = this;
+    let update = false;
+    for (const k of Object.keys(keys)) {
+      update = update || keys[k];
+      keys[k] = false;
     }
 
-    if (val === 1) {
-      states.forwardbackward = keys.sft ? -3 : 3;
-      states.mouse = true;
-    } else if (val === -1) {
-      states.forwardbackward = this.keys.spc ?
-        (keys.sft ? -3 : 3) : 0;
-      states.mouse = false;
+    if (update) this.update(this.states, keys, this.mouse);
+
+    this.keyCodes = kc;
+    const rk: ReverseCodes = {};
+    for (const [k,v] of Object.entries(kc)) {
+      const l = rk[v]||[];
+      l.push(+k);
+      rk[v] = l;
+    }
+    this.reverseKey = rk;
+    
+    this.mouseCodes = mc;
+    const rm: ReverseCodes = {};
+    for (const [k,v] of Object.entries(mc)) {
+      const l = rm[v]||[];
+      l.push(+k);
+      rm[v] = l;
+    }
+    this.reverseMouse = rm;
+
+    for (const [keyCode, v] of Object.entries(this.keyStates)) {
+      const key = this.keyCodes[+keyCode];
+      if (typeof key === 'undefined') {
+        continue;
+      }
+    
+      if (v) keys[key] = true;
+    }
+
+    for (const [button, v] of Object.entries(this.mouseStates)) {
+      const key = this.keyCodes[+button];
+      if (typeof key === 'undefined') {
+        continue;
+      }
+    
+      if (v) keys[key] = true;
     }
   }
 
-  onKey(val: boolean, e: KeyboardEvent) {
-    const key = this.codes[e.keyCode];
+  private onMouse(val: boolean, e: Event) {
+    const code = e instanceof MouseEvent ? e.button : 0;
+    this.mouseStates[code] = val;
+    const key = this.mouseCodes[code];
+    if (typeof key === 'undefined') {
+      return;
+    }
+
+    const { keys } = this;
+
+    if (val) {
+      if (keys[key]) return;
+      keys[key] = true;
+    } else {
+      if (!keys[key]) return;
+      const { mouseStates } = this;
+      for (const code of this.reverseMouse[key]) {
+        if(mouseStates[code]) return;
+      }
+      keys[key] = false;
+    }
+
+    this.update(this.states, keys, this.mouse);
+  }
+
+  private onMouseMove(e: Event) {
+    const { width, height, mouse, keys } = this;
+    const [pageX, pageY] = GetMousePosition(e);
+    mouse.mouseX = 1 - 2 * pageX / width;
+    mouse.mouseY = 1 - 2 * pageY / height;
+    
+    this.update(this.states, keys, mouse);
+  }
+
+  private onKey(val: boolean, e: KeyboardEvent) {
+    const { keyCode } = e;
+    this.keyStates[keyCode] = val;
+    const key = this.keyCodes[keyCode];
     if (typeof key === 'undefined') {
       return;
     }
     e.preventDefault && e.preventDefault();
     e.stopPropagation && e.stopPropagation();
   
-    const keys = this.keys;
-    if (keys[key] === val) return;
-    keys[key] = val;
+    const { keys } = this;
 
-    const states = this.states;
-    if (keys.sft) {
-      states.forwardbackward = (states.mouse || keys.spc) ? -3 : 0;
+    if (val) {
+      const keys = this.keys;
+      if (keys[key]) return;
+      keys[key] = true;
     } else {
-      states.forwardbackward = (states.mouse || keys.spc) ? 3 : 0;
+      if (!keys[key]) return;
+      const { keyStates } = this;
+      for (const code of this.reverseKey[key]) {
+        if(keyStates[code]) return;
+      }
+      keys[key] = false;
     }
 
-    states.leftright = (keys.lft ? 1 : 0) + (keys.rgt ? -1 : 0);
-    states.updown = (keys.up ? 2 : 0) + (keys.dwn ? -2 : 0);
-    states.lookupdwn = (keys.lup ? 1 : 0) + (keys.ldn ? -1 : 0);
+    this.update(this.states, keys, this.mouse);
   }
 }
