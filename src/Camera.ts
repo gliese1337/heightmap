@@ -1,15 +1,18 @@
 import { ControlStates } from './ControlConfig';
-import { ScreenBuffer } from './ScreenBuffer';
 import { GameMap } from './GameMap';
 
 export interface CameraOpts {
   x:        number, // x position on the map
   y:        number, // y position on the map
-  height:   number, // height of the camera
+  altitude:   number, // height of the camera
   angle:    number, // direction of the camera
   horizon:  number, // horizon position (look up and down)
   distance: number, // distance of map
   relief:   number, // vertical scale
+  canvas: HTMLCanvasElement;
+  height: number;
+  width:  number;
+  backgroundcolor: number;
 }
 
 function blend(c1: number, c2: number, r: number) {
@@ -20,33 +23,79 @@ function blend(c1: number, c2: number, r: number) {
   );
 }
 
+class ScreenBuffer {
+  public context: CanvasRenderingContext2D;
+  public imagedata: ImageData;
+  private bufarray: ArrayBuffer; // color data
+  public buf8: Uint8Array; // the same array but with bytes
+  public buf32: Uint32Array; // the same array but with 32-Bit words
+
+  constructor(
+    private canvas: HTMLCanvasElement,
+    public height: number,
+    public width: number,
+    public backgroundcolor: number,
+  ) {
+    this.resize(height, width);
+  }
+
+  resize(width: number, height: number) {
+    const { canvas } = this;
+    this.width = canvas.width = width;
+    this.height = canvas.height = height;
+
+    this.context = canvas.getContext('2d') as CanvasRenderingContext2D;
+    this.imagedata = this.context.createImageData(width, height);
+  
+    this.bufarray = new ArrayBuffer(width * height * 4);
+    this.buf8   = new Uint8Array(this.bufarray);
+    this.buf32  = new Uint32Array(this.bufarray);
+  }
+};
+
 export class Camera {
   private x:        number;
   private y:        number;
-  private height:   number;
+  private altitude:   number;
   private horizon:  number;
   private distance: number;
   private relief:   number;
   private angle:    number;
-  public sin:       number;
-  public cos:       number;
+  private sin:       number;
+  private cos:       number;
+
+  private screenbuffer: ScreenBuffer;
+
+  public width: number;
+  public height: number;
 
   constructor(opts: CameraOpts) {
     this.x = opts.x;
     this.y = opts.y;
-    this.height = opts.height;
+    this.altitude = opts.altitude;
     this.horizon = opts.horizon;
     this.distance = opts.distance;
     this.relief = opts.relief;
     this.angle = opts.angle;
     this.sin = Math.sin(this.angle);
     this.cos = Math.cos(this.angle);
+
+    this.width = opts.width;
+    this.height = opts.height;
+
+    this.screenbuffer = new ScreenBuffer(opts.canvas, opts.width, opts.height, opts.backgroundcolor);
+  }
+
+  resize(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+    this.screenbuffer.resize(width, height);
   }
 
   update(input: ControlStates, map: GameMap, time: number) {
 
     if (input.mouse) {
-      this.height += input.mouseY * time * 30;
+      this.altitude += input.mouseY * time * 30;
       this.angle += input.mouseX * time;
       this.sin = Math.sin(this.angle);
       this.cos = Math.cos(this.angle);
@@ -57,7 +106,7 @@ export class Camera {
         this.cos = Math.cos(this.angle);
       }
 
-      this.height += input.updown * time * 10;
+      this.altitude += input.updown * time * 10;
     }
 
     if (input.forwardbackward !== 0) {
@@ -69,20 +118,20 @@ export class Camera {
 
     // Collision detection. Don't fly below the surface.
     const height = map.altitude(this.x, this.y) + 10;
-    if (height > this.height) this.height = height;
+    if (height > this.altitude) this.altitude = height;
   }
 
-  render(screendata: ScreenBuffer, map: GameMap) {
+  render(map: GameMap) {
 
     const { color, shift } = map;
-    const { sin, cos, distance, relief, height, horizon, x, y } = this;
+    const { sin, cos, distance, relief, altitude, horizon, x, y } = this;
   
     const {
       width: screenwidth,
       height: screenheight,
       buf32, buf8, imagedata,
       backgroundcolor,
-    } = screendata;
+    } = this.screenbuffer;
     buf32.fill(backgroundcolor);
   
     const scale = relief * screenwidth / 800;
@@ -111,7 +160,7 @@ export class Camera {
   
         // Extract color and height, and calculate the top pixel position for the column
         const c = color[((py & mapwidthperiod) << shift) + (px & mapheightperiod)];
-        const ytop = ((height - (c >>> 24)) * scale / z + horizon)|0; // |0 is equivalent to Math.floor
+        const ytop = ((altitude - (c >>> 24)) * scale / z + horizon)|0; // |0 is equivalent to Math.floor
   
         if (ytop >= hiddeny) continue; // this column is fully occluded
   
@@ -131,9 +180,8 @@ export class Camera {
       dy += d2y;
     }
 
-
     // Show the back buffer on screen
     imagedata.data.set(buf8);
-    screendata.context.putImageData(imagedata, 0, 0);
+    this.screenbuffer.context.putImageData(imagedata, 0, 0);
   }
 }
