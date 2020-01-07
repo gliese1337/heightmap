@@ -1,10 +1,8 @@
-import GameLoop from './GameLoop';
+import Game from './Game';
 import { GameMap } from  './GameMap';
 import { ScreenBuffer } from './ScreenBuffer';
 import { Camera } from './Camera';
-import { Controls } from './Controls';
-import { defaultControlStates, keyMap, mouseMap } from './ConcreteControls';
-
+import { defaultControlStates, keyMap, mouseMap } from './ControlConfig';
 
 export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
 
@@ -19,32 +17,30 @@ export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
   });
 
   const map = new GameMap();
-  const screen = new ScreenBuffer(canvas, window.innerWidth, window.innerHeight, 0xFFFFFFFF)
-  const controls = new Controls(defaultControlStates);
-  controls.resize(screen.width, screen.height);
-  controls.setInputMap(keyMap, mouseMap);
+  const screen = new ScreenBuffer(canvas, window.innerWidth, window.innerHeight, 0xFFFFFFFF);
+  const controls = { ...defaultControlStates };
 
-  controls.setUpdate((states, keys, mouse) => {
-    states.forwardbackward = (keys.mouse || keys.spc) ? (keys.sft ? -3 : 3) : 0;
-    states.leftright = (keys.lft ? 1 : 0) + (keys.rgt ? -1 : 0);
-    states.updown = (keys.up ? 2 : 0) + (keys.dwn ? -2 : 0);
-    states.lookupdwn = (keys.lup ? 5 : 0) + (keys.ldn ? -5 : 0);
-    states.mouse = keys.mouse;
-    states.mouseX = mouse.mouseX;
-    states.mouseY = mouse.mouseY;
-  });
+  const game = new Game()
+    .setInputMap(keyMap, mouseMap)
+    .setUpdate((keys, mouse) => {
+      controls.forwardbackward = (keys.mouse || keys.spc) ? (keys.sft ? -3 : 3) : 0;
+      controls.leftright = (keys.lft ? 1 : 0) + (keys.rgt ? -1 : 0);
+      controls.updown = (keys.up ? 2 : 0) + (keys.dwn ? -2 : 0);
+      controls.lookupdwn = (keys.lup ? 5 : 0) + (keys.ldn ? -5 : 0);
+      controls.mouse = keys.mouse;
+      controls.mouseX = mouse.mouseX;
+      controls.mouseY = mouse.mouseY;
+    })
+    .setLoop((seconds: number) => {
+      camera.update(controls, map, seconds);
+      camera.render(screen, map);
+    })
+    .resize(screen.width, screen.height);
 
   window.addEventListener('resize', function() {
     screen.resize(window.innerWidth, window.innerHeight);
-    controls.resize(screen.width, screen.height);
+    game.resize(screen.width, screen.height);
   }, false);
 
-  const loop = new GameLoop((seconds: number) => {
-    camera.update(controls.states, map, seconds);
-    //console.time('render');
-    camera.render(screen, map);
-    //console.timeEnd('render');
-  });
-
-  map.load("C1W;D1").then(() => loop.start());
+  map.load("C1W;D1").then(() => game.start());
 }

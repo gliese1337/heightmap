@@ -1,4 +1,4 @@
-import { ControlStates } from './ConcreteControls';
+import { ControlStates } from './ControlConfig';
 import { ScreenBuffer } from './ScreenBuffer';
 import { GameMap } from './GameMap';
 

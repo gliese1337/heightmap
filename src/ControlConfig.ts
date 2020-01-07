@@ -1,13 +1,12 @@
-
 export interface ControlStates {
-  forwardbackward: number,
-  leftright:       number,
-  updown:          number,
-  lookupdwn:       number,
-  mouseX:          number,
-  mouseY:          number,
-  mouse:           boolean,
-}
+  forwardbackward: number;
+  leftright:       number;
+  updown:          number;
+  lookupdwn:       number;
+  mouseX:          number;
+  mouseY:          number;
+  mouse:           boolean;
+};
 
 export const defaultControlStates = {
   forwardbackward: 0,

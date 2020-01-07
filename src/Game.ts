@@ -25,23 +25,36 @@ interface MousePos {
   mouseY: number;
 };
 
-type ControlUpdater<S> = (states: S, keys: KeyValues, mouse: MousePos) => void;
+export type ControlUpdater = (keys: KeyValues, mouse: MousePos) => void;
 
-export class Controls<ControlStates extends {}> {
-  public mouse: MousePos = { mouseX: 0, mouseY: 0};
-  public keys: KeyValues = new Proxy({} as KeyValues, { get: (target, prop) => target[prop as string] || false });
+export default class Game {
+  private _stop = false;
+  private lastTime = 0;
+  private frame: (seconds: number) => void;
+  private body: (seconds: number) => void = () => {};
+  private width = 0;
+  private height = 0;
+
+  // Input configuration
   private keyCodes: InputCodes = {};
   private mouseCodes: InputCodes = {};
   private keyStates: InputStates = {};
   private mouseStates: InputStates = {};
   private reverseKey: ReverseCodes;
   private reverseMouse: ReverseCodes;
-  private width = 0;
-  private height = 0;
-  private update: ControlUpdater<ControlStates> = () => {};
+  public keys: KeyValues = new Proxy({} as KeyValues, { get: (target, prop) => target[prop as string] || false });
+  public mouse: MousePos = { mouseX: 0, mouseY: 0};
+  private update: ControlUpdater = () => {};
 
-  constructor(public states: ControlStates) {
-
+  constructor() {
+    this.frame = async(time: number) => {
+      if (this._stop) return;
+      const seconds = Math.min(1, (time - this.lastTime) / 1000);
+      this.lastTime = time;
+      await this.body(seconds);
+      requestAnimationFrame(this.frame);
+    }
+    
     document.addEventListener('keydown', this.onKey.bind(this, true), false);
     document.addEventListener('keyup', this.onKey.bind(this, false), false);
     
@@ -54,15 +67,22 @@ export class Controls<ControlStates extends {}> {
     document.addEventListener('touchend', this.onMouse.bind(this, false), false);
   }
 
+  setLoop(body: (seconds: number) => void) {
+    this.body = body;
+    return this;
+  }
+
   resize(w: number, h: number) {
     this.mouse.mouseX + (this.width - w) / 2;
     this.mouse.mouseY + (this.height - h) / 2;
     this.width = w;
     this.height = h;
+    return this;
   }
 
-  setUpdate(update: ControlUpdater<ControlStates>) {
+  setUpdate(update: ControlUpdater) {
     this.update = update;
+    return this;
   }
 
   setInputMap(kc: InputCodes, mc: InputCodes) {
@@ -73,7 +93,7 @@ export class Controls<ControlStates extends {}> {
       keys[k] = false;
     }
 
-    if (update) this.update(this.states, keys, this.mouse);
+    if (update) this.update(keys, this.mouse);
 
     this.keyCodes = kc;
     const rk: ReverseCodes = {};
@@ -110,6 +130,8 @@ export class Controls<ControlStates extends {}> {
     
       if (v) keys[key] = true;
     }
+
+    return this;
   }
 
   private onMouse(val: boolean, e: Event) {
@@ -134,7 +156,7 @@ export class Controls<ControlStates extends {}> {
       keys[key] = false;
     }
 
-    this.update(this.states, keys, this.mouse);
+    this.update(keys, this.mouse);
   }
 
   private onMouseMove(e: Event) {
@@ -143,7 +165,7 @@ export class Controls<ControlStates extends {}> {
     mouse.mouseX = 1 - 2 * pageX / width;
     mouse.mouseY = 1 - 2 * pageY / height;
     
-    this.update(this.states, keys, mouse);
+    this.update(keys, mouse);
   }
 
   private onKey(val: boolean, e: KeyboardEvent) {
@@ -171,6 +193,21 @@ export class Controls<ControlStates extends {}> {
       keys[key] = false;
     }
 
-    this.update(this.states, keys, this.mouse);
+    this.update(keys, this.mouse);
+  }
+
+  stop() {
+    this._stop = true;
+    return this;
+  }
+
+  start() {
+    this._stop = false;
+    requestAnimationFrame(time => {
+      this.lastTime = time;
+      this.frame(time);
+    });
+
+    return this;
   }
 }
