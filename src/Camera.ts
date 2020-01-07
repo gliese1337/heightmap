@@ -23,36 +23,6 @@ function blend(c1: number, c2: number, r: number) {
   );
 }
 
-class ScreenBuffer {
-  public context: CanvasRenderingContext2D;
-  public imagedata: ImageData;
-  private bufarray: ArrayBuffer; // color data
-  public buf8: Uint8Array; // the same array but with bytes
-  public buf32: Uint32Array; // the same array but with 32-Bit words
-
-  constructor(
-    private canvas: HTMLCanvasElement,
-    public height: number,
-    public width: number,
-    public backgroundcolor: number,
-  ) {
-    this.resize(height, width);
-  }
-
-  resize(width: number, height: number) {
-    const { canvas } = this;
-    this.width = canvas.width = width;
-    this.height = canvas.height = height;
-
-    this.context = canvas.getContext('2d') as CanvasRenderingContext2D;
-    this.imagedata = this.context.createImageData(width, height);
-  
-    this.bufarray = new ArrayBuffer(width * height * 4);
-    this.buf8   = new Uint8Array(this.bufarray);
-    this.buf32  = new Uint32Array(this.bufarray);
-  }
-};
-
 export class Camera {
   private x:        number;
   private y:        number;
@@ -64,10 +34,15 @@ export class Camera {
   private sin:       number;
   private cos:       number;
 
-  private screenbuffer: ScreenBuffer;
+  private canvas: HTMLCanvasElement;
+  private context: CanvasRenderingContext2D;
+  private imagedata: ImageData;
+  private buf8: Uint8Array; // color data as bytes
+  private buf32: Uint32Array; // the same array but with 32-Bit words
 
-  public width: number;
-  public height: number;
+  public screenwidth: number;
+  public screenheight: number;
+  private backgroundcolor: number;
 
   constructor(opts: CameraOpts) {
     this.x = opts.x;
@@ -80,20 +55,29 @@ export class Camera {
     this.sin = Math.sin(this.angle);
     this.cos = Math.cos(this.angle);
 
-    this.width = opts.width;
-    this.height = opts.height;
+    this.backgroundcolor = opts.backgroundcolor;
 
-    this.screenbuffer = new ScreenBuffer(opts.canvas, opts.width, opts.height, opts.backgroundcolor);
+    this.canvas = opts.canvas;
+    this.context = this.canvas.getContext('2d') as CanvasRenderingContext2D;
+    this.resize(opts.width, opts.height);
   }
 
   resize(width: number, height: number) {
-    this.width = width;
-    this.height = height;
-    this.screenbuffer.resize(width, height);
+    this.screenwidth = width;
+    this.screenheight = height;
+    
+    const { canvas } = this;
+    canvas.width = width;
+    canvas.height = height;
+
+    this.imagedata = this.context.createImageData(width, height);
+  
+    const bufarray = new ArrayBuffer(width * height * 4);
+    this.buf8   = new Uint8Array(bufarray);
+    this.buf32  = new Uint32Array(bufarray);
   }
 
   update(input: ControlStates, map: GameMap, time: number) {
-
     if (input.mouse) {
       this.altitude += input.mouseY * time * 30;
       this.angle += input.mouseX * time;
@@ -117,25 +101,24 @@ export class Camera {
     this.horizon += input.lookupdwn * time * 10;
 
     // Collision detection. Don't fly below the surface.
-    const height = map.altitude(this.x, this.y) + 10;
-    if (height > this.altitude) this.altitude = height;
+    this.altitude = Math.max(this.altitude, map.altitude(this.x, this.y) + 10);
   }
 
   render(map: GameMap) {
-
     const { color, shift } = map;
-    const { sin, cos, distance, relief, altitude, horizon, x, y } = this;
-  
     const {
-      width: screenwidth,
-      height: screenheight,
-      buf32, buf8, imagedata,
+      x, y,
+      sin, cos,
+      distance, relief,
+      altitude, horizon,
       backgroundcolor,
-    } = this.screenbuffer;
+      screenwidth,
+      screenheight,
+      buf32, buf8, imagedata,
+    } = this;
     buf32.fill(backgroundcolor);
   
     const scale = relief * screenwidth / 800;
-
     const mapwidthperiod = map.width - 1;
     const mapheightperiod = map.height - 1;
   
@@ -163,13 +146,13 @@ export class Camera {
         const ytop = ((altitude - (c >>> 24)) * scale / z + horizon)|0; // |0 is equivalent to Math.floor
   
         if (ytop >= hiddeny) continue; // this column is fully occluded
-  
-        // get offset on screen for the vertical line
-        let offset = ytop * screenwidth + i;
-  
+
         // calculate final color, with distance fade
         const m = blend(c, backgroundcolor, pr*pr/d2);
   
+        // get offset on screen for the vertical line
+        let offset = ytop * screenwidth + i;
+
         do {
           buf32[offset] = m;
           offset += screenwidth;
@@ -182,6 +165,6 @@ export class Camera {
 
     // Show the back buffer on screen
     imagedata.data.set(buf8);
-    this.screenbuffer.context.putImageData(imagedata, 0, 0);
+    this.context.putImageData(imagedata, 0, 0);
   }
 }

@@ -37,11 +37,11 @@ export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
       camera.update(controls, map, seconds);
       camera.render(map);
     })
-    .resize(camera.width, camera.height);
+    .resize(camera.screenwidth, camera.screenheight);
 
   window.addEventListener('resize', function() {
     camera.resize(window.innerWidth, window.innerHeight);
-    game.resize(camera.width, camera.height);
+    game.resize(camera.screenwidth, camera.screenheight);
   }, false);
 
   map.load("C1W;D1").then(() => game.start());
