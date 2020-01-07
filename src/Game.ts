@@ -73,8 +73,6 @@ export default class Game {
   }
 
   resize(w: number, h: number) {
-    this.mouse.mouseX + (this.width - w) / 2;
-    this.mouse.mouseY + (this.height - h) / 2;
     this.width = w;
     this.height = h;
     return this;
