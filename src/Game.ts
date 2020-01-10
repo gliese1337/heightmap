@@ -16,11 +16,11 @@ interface InputStates {
   [key: number]: boolean;
 }
 
-interface KeyValues {
+export interface KeyValues {
   [key: string]: boolean;
 }
 
-interface MousePos {
+export interface MousePos {
   mouseX: number;
   mouseY: number;
 };
@@ -45,6 +45,9 @@ export default class Game {
   public keys: KeyValues = new Proxy({} as KeyValues, { get: (target, prop) => target[prop as string] || false });
   public mouse: MousePos = { mouseX: 0, mouseY: 0};
   private update: ControlUpdater = () => {};
+
+  public controlsActive = false;
+  public controlsTriggered = false;
 
   constructor() {
     this.frame = async(time: number) => {
@@ -145,6 +148,7 @@ export default class Game {
     if (val) {
       if (keys[key]) return;
       keys[key] = true;
+      this.controlsActive = true;
     } else {
       if (!keys[key]) return;
       const { mouseStates } = this;
@@ -154,6 +158,7 @@ export default class Game {
       keys[key] = false;
     }
 
+    this.controlsTriggered = true;
     this.update(keys, this.mouse);
   }
 
@@ -163,6 +168,7 @@ export default class Game {
     mouse.mouseX = 1 - 2 * pageX / width;
     mouse.mouseY = 1 - 2 * pageY / height;
     
+    this.controlsTriggered = true;
     this.update(keys, mouse);
   }
 
@@ -182,6 +188,7 @@ export default class Game {
       const keys = this.keys;
       if (keys[key]) return;
       keys[key] = true;
+      this.controlsActive = true;
     } else {
       if (!keys[key]) return;
       const { keyStates } = this;
@@ -191,6 +198,7 @@ export default class Game {
       keys[key] = false;
     }
 
+    this.controlsTriggered = true;
     this.update(keys, this.mouse);
   }
 
@@ -204,6 +212,7 @@ export default class Game {
     requestAnimationFrame(time => {
       this.lastTime = time;
       this.frame(time);
+      this.controlsTriggered = false;
     });
 
     return this;
