@@ -9,10 +9,9 @@ export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
     x:    512, // x position on the map
     y:    800, // y position on the map
     altitude:  150, // height of the camera
-    angle:     0, // direction of the camera
-    horizon:  100, // horizon position (look up and down)
+    phi:     0, // direction of the camera (look left and right)
+    theta:     0, // direction of the camera (look up and down)
     distance: 800,   // distance of map
-    relief: 240,
     canvas: canvas,
     width: window.innerWidth,
     height: window.innerHeight,
