@@ -5,9 +5,10 @@ export interface CameraOpts {
   x:        number, // x position on the map
   y:        number, // y position on the map
   altitude:   number, // height of the camera
-  phi:      number, // direction of the camera
-  theta:    number, // direction of the camera
+  angle:    number, // direction of the camera
+  horizon:  number, // horizon position (look up and down)
   distance: number, // distance of map
+  relief:   number, // vertical scale
   canvas: HTMLCanvasElement;
   height: number;
   width:  number;
@@ -22,13 +23,51 @@ function blend(c1: number, c2: number, r: number) {
   );
 }
 
+function init_cast([x, y]: [number, number], [cos, sin]: [number, number]) {
+  const tan = sin/cos;
+  const cot = cos/sin;
+
+  let xdelta = Math.abs(1/cos);
+  let ydelta = Math.abs(1/sin);
+
+  let d: number;
+  let mx: number, sx: number;
+  if(cos > 0){
+    sx = 1;
+    mx = Math.floor(x);
+    d = mx + 1 - x;
+  }else{
+    sx = -1;
+    mx = Math.ceil(x - 1);
+    d = mx - x;
+  }
+  let xdist = Math.hypot(d, d * tan);
+
+  let my: number, sy: number;
+  if(sin > 0){
+    sy = 1;
+    my = Math.floor(y);
+    d = my + 1 - y;
+  }else{
+    sy = -1;
+    my = Math.ceil(y - 1);
+    d = my - y;
+  }
+  let ydist = Math.hypot(d * cot, d);
+
+  return { mx, my, sx, sy, xdist, ydist, xdelta, ydelta };
+}
+
 export class Camera {
   private x:        number;
   private y:        number;
   private altitude:   number;
-  private distance: number;
-  private phi: number;
-  private theta: number;
+  private horizon:  number;
+  private range: number;
+  private relief:   number;
+  private angle:    number;
+  private sin:       number;
+  private cos:       number;
 
   private canvas: HTMLCanvasElement;
   private context: CanvasRenderingContext2D;
@@ -40,13 +79,22 @@ export class Camera {
   public screenheight: number;
   private backgroundcolor: number;
 
+  private sines: Float32Array;
+  private cosines: Float32Array;
+  private fov: number;
+
   constructor(opts: CameraOpts) {
     this.x = opts.x;
     this.y = opts.y;
     this.altitude = opts.altitude;
-    this.distance = opts.distance;
-    this.phi = opts.phi;
-    this.theta = opts.theta;
+    this.horizon = opts.horizon;
+    this.range = opts.distance;
+    this.relief = opts.relief;
+    this.angle = opts.angle;
+    this.sin = Math.sin(this.angle);
+    this.cos = Math.cos(this.angle);
+
+    this.fov = Math.PI/4;
 
     this.backgroundcolor = opts.backgroundcolor;
 
@@ -55,6 +103,17 @@ export class Camera {
     this.resize(opts.width, opts.height);
   }
 
+  setFoV(fov: number) {	
+    const scale = Math.tan(fov/2);
+    const { canvas: { width }, sines, cosines } = this;
+    for (let col = 0; col < width; col++) {
+      const angle = Math.atan(scale*(col / width - 0.5));
+      const cos = Math.cos(angle);
+      sines[col] = Math.sin(angle);
+      cosines[col] = cos;
+    }
+  }
+  
   resize(width: number, height: number) {
     this.screenwidth = width;
     this.screenheight = height;
@@ -62,6 +121,9 @@ export class Camera {
     const { canvas } = this;
     canvas.width = width;
     canvas.height = height;
+    this.sines = new Float32Array(width);
+    this.cosines  = new Float32Array(width);
+    this.setFoV(this.fov);
 
     this.imagedata = this.context.createImageData(width, height);
   
@@ -73,45 +135,93 @@ export class Camera {
   update(input: ControlStates, map: GameMap, time: number) {
     if (input.mouse) {
       this.altitude += input.mouseY * time * 30;
-      this.phi += input.mouseX * time;
+      this.angle -= input.mouseX * time;
+      this.sin = Math.sin(this.angle);
+      this.cos = Math.cos(this.angle);
     } else {
       if (input.leftright !== 0) {
-        this.phi += input.leftright*time;
+        this.angle -= input.leftright*time;
+        this.sin = Math.sin(this.angle);
+        this.cos = Math.cos(this.angle);
       }
 
       this.altitude += input.updown * time * 10;
     }
 
     if (input.forwardbackward !== 0) {
-      this.x -= input.forwardbackward * Math.sin(this.phi) * time * 10;
-      this.y -= input.forwardbackward * Math.cos(this.phi) * time * 10;
+      this.x += input.forwardbackward * this.cos * time * 30;
+      this.y += input.forwardbackward * this.sin * time * 30;
     }
 
-    this.theta += input.lookupdwn * time;
+    this.horizon += input.lookupdwn * time * 10;
 
     // Collision detection. Don't fly below the surface.
     this.altitude = Math.max(this.altitude, map.altitude(this.x, this.y) + 10);
   }
 
   render(map: GameMap) {
+    const { color, shift } = map;
     const {
-      x, y, phi, theta,
-      distance: range,
-      altitude,
+      x, y, sin, cos,
+      sines, cosines,
+      range, relief,
+      altitude, horizon,
       backgroundcolor,
       screenwidth,
       screenheight,
       buf32, buf8, imagedata,
     } = this;
+    buf32.fill(backgroundcolor);
+  
+    const scale = relief * screenwidth / 200;
 
-    let offset = 0;
-    for (let j = screenheight; j >= 0; j--) {
-      const ytheta = theta + Math.atan2(j - screenheight/2, 20);
-      for (let i = screenwidth; i >= 0; i--) {
-        const xphi = phi + Math.atan2(i - screenwidth/2, 20);
-        const { value, distance } = map.cast([x, y], altitude, xphi, ytheta, range);
-        buf32[offset++] = blend(value, backgroundcolor, distance / range);
-      }
+    const r2 = range * range;
+
+    for (let col = screenwidth; col >= 0; col--) {
+      let hiddeny = screenheight;
+			const rsin = sines[col];
+      const rcos = cosines[col];
+      
+      const wmask = map.width - 1;
+      const hmask = map.height - 1;
+  
+      let {
+        mx, my,
+        sx, sy,
+        xdist, ydist,
+        xdelta, ydelta,
+      } = init_cast([x, y], [cos*rcos-sin*rsin, sin*rcos+cos*rsin]);
+  
+      let distance = 0;
+      do {
+        if (xdist < ydist) {
+          mx += sx;
+          distance = xdist;
+          xdist += xdelta;
+        } else {
+          my += sy;
+          distance = ydist;
+          ydist += ydelta;
+        }
+  
+        const value = color[((my & wmask) << shift) + (mx & hmask)];
+
+        // calculate the top pixel position for the column
+        const ytop = ((altitude - (value >> 24)) * scale / distance + horizon)|0; // |0 is equivalent to Math.floor
+        
+        if (ytop < hiddeny) { // this column is not fully occluded
+          // calculate final color, with distance fade
+          const m = blend(value, backgroundcolor, distance*distance/r2);
+          
+          // get offset on screen for the vertical line
+          let offset = ytop * screenwidth + col;
+
+          do { // draw column section
+            buf32[offset] = m;
+            offset += screenwidth;
+          } while (--hiddeny > ytop);
+        }
+      } while(distance < range);
     }
 
     // Show the back buffer on screen
