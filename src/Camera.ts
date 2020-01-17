@@ -101,11 +101,10 @@ export class Camera {
     this.horizon += input.lookupdwn * time * 10;
 
     // Collision detection. Don't fly below the surface.
-    this.altitude = Math.max(this.altitude, map.altitude(this.x, this.y) + 10);
+    this.altitude = Math.max(this.altitude, map.column(this.x, this.y, 0)[0] + 10);
   }
 
   render(map: GameMap) {
-    const { color, shift } = map;
     const {
       x, y,
       sin, cos,
@@ -119,8 +118,6 @@ export class Camera {
     buf32.fill(backgroundcolor);
   
     const scale = relief * screenwidth / 800;
-    const mapwidthperiod = map.width - 1;
-    const mapheightperiod = map.height - 1;
   
     // 90 degree field of view
     let dx = -cos - sin;
@@ -142,8 +139,8 @@ export class Camera {
         py += dy;
   
         // Extract color and height, and calculate the top pixel position for the column
-        const c = color[((py & mapwidthperiod) << shift) + (px & mapheightperiod)];
-        const ytop = ((altitude - (c >>> 24)) * scale / z + horizon)|0; // |0 is equivalent to Math.floor
+        const [ a, c ] = map.column(px, py, 0);
+        const ytop = ((altitude - a) * scale / z + horizon)|0; // |0 is equivalent to Math.floor
   
         if (ytop >= hiddeny) continue; // this column is fully occluded
 

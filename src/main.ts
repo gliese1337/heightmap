@@ -44,5 +44,5 @@ export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
     game.resize(camera.screenwidth, camera.screenheight);
   }, false);
 
-  map.load("C1W;D1").then(() => game.start());
+  game.start();
 }
