@@ -23,39 +23,37 @@ function blend(c1: number, c2: number, r: number) {
   );
 }
 
-function init_cast([x, y]: [number, number], [cos, sin]: [number, number]) {
-  const tan = sin/cos;
-  const cot = cos/sin;
-
-  let xdelta = Math.abs(1/cos);
-  let ydelta = Math.abs(1/sin);
-
-  let d: number;
-  let mx: number, sx: number;
-  if(cos > 0){
-    sx = 1;
-    mx = Math.floor(x);
-    d = mx + 1 - x;
-  }else{
-    sx = -1;
-    mx = Math.ceil(x - 1);
-    d = mx - x;
+function init_comp(x: number, xc: number, yc: number, zc: number) {
+  let s, m, d;
+  if (xc > 0) {
+    s = 1;
+    m = Math.floor(x);
+    d = m + 1 - x;
+  } else {
+    s = -1;
+    m = Math.ceil(x - 1);
+    d = m - x;
   }
-  let xdist = Math.hypot(d, d * tan);
 
-  let my: number, sy: number;
-  if(sin > 0){
-    sy = 1;
-    my = Math.floor(y);
-    d = my + 1 - y;
-  }else{
-    sy = -1;
-    my = Math.ceil(y - 1);
-    d = my - y;
-  }
-  let ydist = Math.hypot(d * cot, d);
+  return { s, m, dist: Math.hypot(d, d * (yc/xc||0), d * (zc/xc||0)) };
+}
 
-  return { mx, my, sx, sy, xdist, ydist, xdelta, ydelta };
+function init_cast(point: [number, number, number], vector: [number, number, number]) {
+  const [xc, yc, zc] = vector;
+  const [x, y, z] = point;
+
+  let { s: sx, m: mx, dist: xdist } = init_comp(x, xc, yc, zc);
+  let { s: sy, m: my, dist: ydist } = init_comp(y, yc, xc, zc);
+  let { s: sz, m: mz, dist: zdist } = init_comp(z, zc, xc, yc);
+
+  return {
+    mx, my, mz,
+    sx, sy, sz,
+    xdist, ydist, zdist,
+    xdelta: Math.abs(1/xc),
+    ydelta: Math.abs(1/yc),
+    zdelta: Math.abs(1/zc),
+  };
 }
 
 export class Camera {
@@ -94,7 +92,7 @@ export class Camera {
     this.sin = Math.sin(this.angle);
     this.cos = Math.cos(this.angle);
 
-    this.fov = Math.PI/4;
+    this.fov = Math.PI/2;
 
     this.backgroundcolor = opts.backgroundcolor;
 
@@ -149,8 +147,8 @@ export class Camera {
     }
 
     if (input.forwardbackward !== 0) {
-      this.x += input.forwardbackward * this.cos * time * 30;
-      this.y += input.forwardbackward * this.sin * time * 30;
+      this.x += input.forwardbackward * this.cos * time * 10;
+      this.y += input.forwardbackward * this.sin * time * 10;
     }
 
     this.horizon += input.lookupdwn * time * 10;
@@ -173,11 +171,11 @@ export class Camera {
     } = this;
     buf32.fill(backgroundcolor);
   
-    const scale = relief * screenwidth / 200;
+    const scale = relief * screenwidth / 300;
 
     const r2 = range * range;
 
-    for (let col = screenwidth; col >= 0; col--) {
+    for (let col = screenwidth-1; col >= 0; col--) {
       let hiddeny = screenheight;
 			const rsin = sines[col];
       const rcos = cosines[col];
@@ -186,25 +184,35 @@ export class Camera {
       const hmask = map.height - 1;
   
       let {
-        mx, my,
-        sx, sy,
-        xdist, ydist,
-        xdelta, ydelta,
-      } = init_cast([x, y], [cos*rcos-sin*rsin, sin*rcos+cos*rsin]);
+        mx, my, mz,
+        sx, sy, sz,
+        xdist, ydist, zdist,
+        xdelta, ydelta, zdelta,
+      } = init_cast([x, y, 0], [cos*rcos-sin*rsin, sin*rcos+cos*rsin, 0]);
   
       let distance = 0;
       do {
-        if (xdist < ydist) {
-          mx += sx;
-          distance = xdist;
-          xdist += xdelta;
-        } else {
-          my += sy;
-          distance = ydist;
-          ydist += ydelta;
-        }
+        switch(Math.min(xdist, ydist, zdist)){
+          case xdist:
+            mx += sx;
+            distance = xdist;
+            xdist += xdelta;
+            break;
+          case ydist:
+            my += sy;
+            distance = ydist;
+            ydist += ydelta;
+            break;
+          case zdist:
+            mz += sz;
+            distance = zdist;
+            zdist += zdelta;
+            break;
+          default:
+            debugger;
+          }
   
-        const value = color[((my & wmask) << shift) + (mx & hmask)];
+        const value = color[((my & wmask) << shift) + (mx & hmask) + mz];
 
         // calculate the top pixel position for the column
         const ytop = ((altitude - (value >> 24)) * scale / distance + horizon)|0; // |0 is equivalent to Math.floor
