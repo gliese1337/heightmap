@@ -1,15 +1,12 @@
 import Game from './Game';
 import { GameMap } from  './GameMap';
 import { Camera } from './Camera';
+import Player from './Player';
 import { defaultControlStates, keyMap, mouseMap } from './ControlConfig';
 
 export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
 
   const camera = new Camera({
-    x:    512, // x position on the map
-    y:    800, // y position on the map
-    altitude:  150, // height of the camera
-    angle:     0, // direction of the camera
     horizon:  100, // horizon position (look up and down)
     distance: 1600,   // distance of map
     relief: 240,
@@ -19,13 +16,20 @@ export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
     backgroundcolor: 0xFFFFFFFF,
   });
 
+  const player = new Player({
+    x:    512, // x position on the map
+    y:    800, // y position on the map
+    z:    0,
+    w:    150, // height of the camera
+  });
+
   const map = new GameMap();
   const controls = { ...defaultControlStates };
 
   const game = new Game()
     .setInputMap(keyMap, mouseMap)
     .setUpdate((keys, mouse) => {
-      controls.forwardbackward = (keys.mouse || keys.spc) ? (keys.sft ? -3 : 3) : 0;
+      controls.forwardbackward = (keys.mouse || keys.spc) ? (keys.sft ? -30 : 30) : 0;
       controls.leftright = (keys.lft ? 1 : 0) + (keys.rgt ? -1 : 0);
       controls.updown = (keys.up ? 2 : 0) + (keys.dwn ? -2 : 0);
       controls.lookupdwn = (keys.lup ? 5 : 0) + (keys.ldn ? -5 : 0);
@@ -34,8 +38,9 @@ export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
       controls.mouseY = mouse.mouseY;
     })
     .setLoop((seconds: number) => {
-      camera.update(controls, map, seconds);
-      camera.render(map);
+      player.update(controls, seconds, map);
+      camera.update(controls, seconds);
+      camera.render(player, map);
     })
     .resize(camera.screenwidth, camera.screenheight);
 

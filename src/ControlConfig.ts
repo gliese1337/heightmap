@@ -1,6 +1,8 @@
 export interface ControlStates {
   forwardbackward: number;
   leftright:       number;
+  anakata:         number;
+  fourroll:        number;
   updown:          number;
   lookupdwn:       number;
   mouseX:          number;
@@ -11,6 +13,8 @@ export interface ControlStates {
 export const defaultControlStates = {
   forwardbackward: 0,
   leftright:       0,
+  anakata:         0,
+  fourroll:        0,
   updown:          0,
   lookupdwn:       0,
   mouseX:          0,

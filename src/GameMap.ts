@@ -33,7 +33,7 @@ export class GameMap {
     }
   }
 
-  altitude(x: number, y: number) {
+  altitude(x: number, y: number, _: number) {
     return this.color[((y & (this.width-1)) << this.shift) + (x & (this.height-1))]>>24;
   }
 }
