@@ -16,12 +16,14 @@ export default function main(canvas: HTMLCanvasElement, _: HTMLDivElement) {
     backgroundcolor: 0xFFFFFFFF,
   });
 
-  const player = new Player({
-    x:    512, // x position on the map
-    y:    800, // y position on the map
-    z:    0,
-    w:    150, // height of the camera
-  });
+  const player = new Player(
+    {
+      x:    512,
+      y:    800,
+      z:    0,
+    },
+    150, // altitude
+  );
 
   const map = new GameMap();
   const controls = { ...defaultControlStates };

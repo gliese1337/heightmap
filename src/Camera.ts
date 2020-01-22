@@ -1,14 +1,15 @@
 import { ControlStates } from './ControlConfig';
 import { GameMap } from './GameMap';
 import Player from './Player';
+import { Vec3 } from './Vectors';
 
 export interface CameraOpts {
-  horizon:  number, // horizon position (look up and down)
+  horizon: number, // horizon position (look up and down)
   distance: number, // distance of map
-  relief:   number, // vertical scale
+  relief: number, // vertical scale
   canvas: HTMLCanvasElement;
   height: number;
-  width:  number;
+  width: number;
   backgroundcolor: number;
 }
 
@@ -35,10 +36,7 @@ function init_comp(x: number, xc: number, yc: number, zc: number) {
   return { s, m, dist: Math.hypot(d, d * (yc/xc||0), d * (zc/xc||0)) };
 }
 
-function init_cast(point: [number, number, number], vector: [number, number, number]) {
-  const [xc, yc, zc] = vector;
-  const [x, y, z] = point;
-
+function init_cast({ x, y, z }: Vec3, { x: xc, y: yc, z: zc }: Vec3) {
   let { s: sx, m: mx, dist: xdist } = init_comp(x, xc, yc, zc);
   let { s: sy, m: my, dist: ydist } = init_comp(y, yc, xc, zc);
   let { s: sz, m: mz, dist: zdist } = init_comp(z, zc, xc, yc);
@@ -125,13 +123,11 @@ export class Camera {
     } = this;
     buf32.fill(backgroundcolor);
 
-    const { pos, fwd, rgt } = player;
-    const { x, y, z, w: altitude } = pos;
+    const { pos, fwd, rgt, altitude } = player;
   
     const scale = relief * screenwidth / 300;
 
     const r2 = range * range;
-    const origin: [number, number, number] = [x, y, z];
 
     for (let col = 0; col < screenwidth; col++) {
       let hiddeny = screenheight;
@@ -147,14 +143,14 @@ export class Camera {
       const z = cos * fwd.z + sin * rgt.z;
     
       const len = Math.hypot(x, y, z);
-      const ray: [number, number, number] = [ x / len, y / len, z / len];
+      const ray: Vec3 = { x: x / len, y: y / len, z: z / len };
 
       let {
         mx, my, mz,
         sx, sy, sz,
         xdist, ydist, zdist,
         xdelta, ydelta, zdelta,
-      } = init_cast(origin, ray);
+      } = init_cast(pos, ray);
   
       let distance = 0;
       do {

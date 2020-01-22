@@ -1,33 +1,29 @@
-import { Vec4, vec_rot2, orthonorm, vec_add } from "./Vectors";
+import { Vec3, vec_rot2, orthonorm, vec_add } from "./Vectors";
 import { ControlStates } from './ControlConfig';
 import { GameMap } from './GameMap';
 
-const planes = { x: 'fwd', y: 'rgt', z: 'ana', w: 'up' };
+const planes = { x: 'fwd', y: 'rgt', z: 'ana' };
 
 const turnRate = Math.PI / 2.75;
 
 export default class Player {
-  public velocity: Vec4 = { x: 0, y: 0, z: 0, w: 0 };
+  public fwd: Vec3 = { x: 1, y: 0, z: 0 };
+  public rgt: Vec3= { x: 0, y: 1, z: 0 };
+  public ana: Vec3 = { x: 0, y: 0, z: 1 };
 
-  public fwd: Vec4 = { x: 1, y: 0, z: 0, w: 0 };
-  public rgt: Vec4= { x: 0, y: 1, z: 0, w: 0 };
-  public ana: Vec4 = { x: 0, y: 0, z: 1, w: 0 };
-  public up: Vec4 = { x: 0, y: 0, z: 0, w: 1 };
+  constructor(public pos: Vec3, public altitude: number) { }
 
-  constructor(public pos: Vec4) { }
-
-  rotate(v: keyof Vec4, k: keyof Vec4, angle: number) {
-    const vn = planes[v] as "rgt"|"fwd"|"up"|"ana";
-    const kn = planes[k] as "rgt"|"fwd"|"up"|"ana";
+  rotate(v: keyof Vec3, k: keyof Vec3, angle: number) {
+    const vn = planes[v] as "rgt"|"fwd"|"ana";
+    const kn = planes[k] as "rgt"|"fwd"|"ana";
     vec_rot2(this[vn], this[kn], angle);
   }
 
   renormalize() {
-    const { rgt, up, fwd, ana } = this;
+    const { rgt, fwd, ana } = this;
     orthonorm(fwd, []);
     orthonorm(rgt, [fwd]);
-    orthonorm(up, [fwd, rgt]);
-    orthonorm(ana, [fwd, rgt, up]);
+    orthonorm(ana, [fwd, rgt]);
   }
 
   update_pos(controls: ControlStates, seconds: number, map: GameMap) {
@@ -35,7 +31,7 @@ export default class Player {
     if (controls.forwardbackward !== 0) {
       vec_add(pos, seconds * controls.forwardbackward, fwd);
       // Collision detection. Don't fly below the surface.
-      pos.w = Math.max(pos.w, map.altitude(pos.x, pos.y, pos.z) + 10);
+      this.altitude = Math.max(this.altitude, map.altitude(pos.x, pos.y, pos.z) + 10);
       return true;
     }
 
@@ -83,13 +79,13 @@ export default class Player {
         moved = true;
       }
       if (mouseY !== 0) {
-        this.pos.w += mouseY * seconds * 30;
+        this.altitude += mouseY * seconds * 30;
         moved = true;
       }
     }
 
     if (controls.updown !== 0) {
-      this.pos.w += controls.updown * seconds * 30;
+      this.altitude += controls.updown * seconds * 30;
       moved = true;
     }
 
