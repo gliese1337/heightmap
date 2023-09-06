@@ -11,7 +11,7 @@
   "author": "Logan Kearsley",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^22.2.0",
+    "electron": "^22.3.21",
     "typescript": "^3.7.4"
   }
 }
